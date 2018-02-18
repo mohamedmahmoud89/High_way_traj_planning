@@ -1,0 +1,53 @@
+- My path planning solution consists of 2 parts. the path planner which has the path planning state machine, and the path generator which only
+basically generates trajectories.
+
+- the path generator plans a path using the same cubic spile fitting approach described in the prject walkthrough. So, it needs the vehicle current
+state (x,y,yaw,s,d,speed), the previous path, the target lane number, the max speed in MPH, and some smoothing factor to be used in smoothing the 
+takeover trajectories.
+
+- The path planner is updating the planning state machine and using the generator to generate the needed trajectories dependent on the state.
+- The path planning states are:
+STATE_START_UP:
+- during this state, the planner tries to speed up gradually keeping the same lane where the vehicle starts at. once the desired speed is reached, 
+it goes to state STATE_KEEP_LANE. no other state can go back to STARTUP state. so, it's really start up.
+
+STATE_KEEP_LANE:
+- This is the default state i would say. during lane keep, there is no vehicles moving ahead in the same lane within some range. 
+so, the vehicle tries to follow that lane using the max speed. the lane keep state can only transit to STATE_PREPARE_CHANGE_LANE state. 
+
+STATE_PREPARE_CHANGE_LANE:
+- in case the ego vehicle is approaching some other vehicle in the same lane, we try to prepare for lane change.during this state, the vehicle tries to 
+secure the take over trajectory taking into consideration the vehicle ahead (slowing down if we get too close to it). once the take over trajectory is secured,
+the planner transits to STATE_CHANGE_LANE_LEFT or STATE_CHANGE_LANE_RIGHT.
+
+STATE_CHANGE_LANE_LEFT:
+STATE_CHANGE_LANE_RIGHT:
+-These are the sattes where the vehicle does the take over maneuver. once it's done, the planner goes back to the default state keep_lane.
+
+- the planner uses the generator to generate paths for all the states. this is why something like the smoothing factor is needed. as in case of planning
+a takeover trajectory, it needs to be more smooth than the lane keep one.
+
+- from implementation point of view. i implemented 2 classes, the path_planner and the path_gen. and i separated the helper funtions from the main file 
+putting them into the tools module to be used whereever it's needeed.
+
+- the path_gen has one interface function which is GeneratePath(). same for the path_planner class, it has also one interface function which is PathUpdate().
+
+- the path_planner class has a pointer to a path_gen object. as the planner needs a generator indeed.
+
+- for more details about the classes, please refer to the path_planner.h and path_gen.h headers. it's pretty straight fwd.
+
+- in the main function, we create an object of a path planner which by default creates an object f a path gen during constructin.
+
+- in the path_planner.cpp file, there are some offsets defined. e.g. DEFAULT_SPEED_MPH, DELTA_SPEED_START_UP_MPH...etc. these are the offsets controlling
+the speed, the delta speed (which controls the acc), the distances to check whether a take over is safe or not...etc. which i tuned to make it work.
+
+- my solution has limitations and weaknesses. first of all, it does not use a generic cost function, which is not a drawback. using a generic cost function 
+would make it hard to tune in case a special behavior is needed, and it would need to test all other use cases as well to make sure this tuning done to the cost function is ok.
+it's pretty like ML. to cover something new, one need to retrain (tune), make sure all cases still work and sometimes, the model is not valid anymore, one need to re-construct the model.
+so a generic cost function has its own disadvantages too. my solution which is dealing with each state as a special case. which in one hand can be complex if we are talking about a bigger state machine.
+but it's pretty easy to add one more special case knowing that all the other cases are not touched at all.
+
+- still the big limitation i do have is that there's no prediction layer at all. i do use the offsets and tune them to make it work, but it fails in some cases.
+best would be to have a prediction layer to know if the surrounding vehicle are speeding up, slowing down, culd make a lane change or not. or what is the best lane
+change possible t the ego vehicle...etc.
+
